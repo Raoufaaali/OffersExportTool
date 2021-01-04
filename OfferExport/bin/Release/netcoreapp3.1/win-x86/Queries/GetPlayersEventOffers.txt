@@ -1,0 +1,11 @@
+﻿SELECT 
+NULL AS SegmentName, 
+v.Player_ID AS PlayerID, 
+CONVERT(VARCHAR(20),e.Event_ID)+'-'+CONVERT(VARCHAR(20),
+r.redemption_ID) AS OfferId, 
+'Campaign Event' AS SubType 
+FROM WinOasis.dbo.cp_Campaigns c (NOLOCK)
+INNER JOIN WinOasis.dbo.cp_event e (NOLOCK) ON c.campaign_id = e.campaign_id
+INNER JOIN WinOasis.dbo.cp_redemption r (NOLOCK) ON e.event_id = r.event_id
+INNER JOIN WinOasis.dbo.CP_Validation v (NOLOCK) ON r.Redemption_ID = v.Redemption_ID AND v.Status_ID = 400 AND v.Redeemer_ID IS NULL
+AND r.Event_ID IN( {offer_EventIds} ) AND r.Redemption_ID IN( {coupon_RedemptionIds} )

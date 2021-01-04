@@ -1,0 +1,5 @@
+﻿SELECT NULL AS SegmentName,
+PlayerID,
+PromoID AS OfferID,
+'Promo' AS SubType
+FROM WinOasis.dbo.PBTPromoPlayer p WITH (NOLOCK) WHERE PromoID IN ( {promoIds} ) 

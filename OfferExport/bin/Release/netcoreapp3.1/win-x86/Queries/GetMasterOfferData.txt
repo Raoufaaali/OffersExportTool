@@ -1,0 +1,91 @@
+﻿DECLARE @iBegDate DateTime = GetDate();
+--SET @iBegDate = GetDate() - 10000;  -- development purpose only, comment this line out for production
+
+SELECT DISTINCT
+       CONVERT(VARCHAR(20),S.PromoID) OfferId
+	  ,NULL Offer_EventID
+	  ,NULL Coupon_RedemptionID
+	  ,LTRIM(RTRIM(e.PromoDesc))OfferName
+	  ,'Oasis' OfferType
+	  ,'Promo' SubType
+      ,CONVERT(DATE,s.PromoStartDate)ValidFromDate
+      ,CONVERT(TIME(0),s.PromoStartDate)ValidFromTime
+      ,CONVERT(DATE,e.EndDate)ValidToDate
+      ,CONVERT(TIME(0),e.EndDate)ValidToTime
+      ,NULL ValidDays
+	  ,LTRIM(RTRIM(e.PromoDesc)) Description
+	  ,NULL AlternateDescription
+	  ,COUNT(s.PlayerID) CountOfPlayersInOffer 
+    FROM
+    (
+      SELECT
+		p.PlayerID,
+        p.GroupID, 
+        p.PromoID,
+        p.IssueDatetime PromoStartDate 
+      FROM WinOasis.dbo.PBTPromoPlayer p WITH (NOLOCK)
+      WHERE (p.IssueDatetime >= @iBegDate OR @iBegDate BETWEEN p.IssueDateTime AND p.ExpireDateTime)
+    ) s
+      INNER JOIN  WinOasis.dbo.CDS_GROUP g WITH (NOLOCK) ON g.Group_ID=s.GroupID 
+      INNER JOIN  WinOasis.dbo.PBT_PROMO_EVENT e WITH (NOLOCK) ON e.Promo_ID=s.PromoID
+	--WHERE e.Promo_ID NOT IN (SELECT DISTINCT Offer# FROM WinOasis_Arch.DBO.APS_PlayerMax_OfferExtract (NOLOCK) WHERE Coupon_RedemptionID IS NULL)
+	GROUP BY 
+		S.PromoID
+	   ,E.PromoDesc
+	   ,s.PromoStartDate
+	   ,e.StartDate
+	   ,e.EndDate
+UNION ALL
+SELECT DISTINCT
+	   CONVERT(VARCHAR(20),o.Offer_ID)+'-'+CONVERT(VARCHAR(20),p.Coupon_ID) OfferId
+	  ,o.Offer_ID Offer_EventID
+	  ,p.Coupon_ID Coupon_RedemptionID
+	  ,LTRIM(RTRIM(o.sOfferName))+' '+LTRIM(RTRIM(p.sCouponName)) OfferName
+	  ,'Oasis' OfferType
+	  ,LTRIM(RTRIM(p.sCouponSubType)) SubType
+	  ,CONVERT(DATE,p.DateCouponStart) ValidFromDate
+	  ,CONVERT(TIME(0),p.DateCouponStart) ValidFromTime
+	  ,CONVERT(DATE,p.DateCouponEnd) ValidToDate
+	  ,CONVERT(TIME(0),p.DateCouponEnd) ValidToTime
+	  ,NULL ValidDays
+	  ,LTRIM(RTRIM(o.sOfferName))+' '+LTRIM(RTRIM(p.sCouponName))  Description
+	  ,CASE WHEN p.sCouponDescription <> '' THEN p.sCouponDescription ELSE NULL END AlternateDescription
+	  ,CASE 
+			WHEN o.iImported = -1 Then (select count(offer_ix) from WinOasis.dbo.CP_Coupons_Players_Validation where offer_ix = o.offer_id)
+			ELSE o.iCountOfPlayersToGetThisOffer
+			END CountOfPlayersInOffer
+FROM  WinOasis.dbo.cp_campaigns c(NOLOCK) inner join  WinOasis.dbo.cp_offers o (NOLOCK) on (c.Campaign_ID = o.Campaign_IX)
+     left outer join  WinOasis.dbo.cp_coupons p (NOLOCK) on (o.Offer_ID = p.Offer_IX)
+WHERE
+	(p.DateCouponStart >= @iBegDate OR @iBegDate BETWEEN p.DateCouponStart AND p.DateCouponEnd)
+	--AND CONVERT(VARCHAR(20),o.Offer_ID)+'-'+CONVERT(VARCHAR(20),p.Coupon_ID) NOT IN (SELECT DISTINCT Offer# FROM WinOasis_Arch.DBO.APS_PlayerMax_OfferExtract (NOLOCK))
+	AND p.sCouponType = 'M'
+UNION ALL
+-- This select returns all the event information
+SELECT DISTINCT
+	   CONVERT(VARCHAR(20),e.Event_ID)+'-'+CONVERT(VARCHAR(20),r.redemption_ID) OfferId
+	   ,e.Event_ID Offer_EventID
+	  ,r.Redemption_ID Coupon_RedemptionID
+	  ,LTRIM(RTRIM(e.EventName))+' '+LTRIM(RTRIM(r.redemptionName)) OfferName
+	  ,'Oasis' OfferType
+	  ,LTRIM(RTRIM(r.redemptionType)) SubType
+	  ,CONVERT(DATE,r.StartDate) ValidFromDate
+	  ,CONVERT(TIME(0),r.StartDate) ValidFromTime
+	  ,CONVERT(DATE,r.EndDate) ValidToDate
+	  ,CONVERT(TIME(0),r.EndDate) ValidToTime
+	  ,NULL Validays
+	  ,LTRIM(RTRIM(e.EventName))+' '+LTRIM(RTRIM(r.redemptionName)) Description
+	  ,CASE WHEN LTRIM(RTRIM(r.Description)) IS NOT NULL THEN LTRIM(RTRIM(r.Description)) ELSE NULL	END AlternateDescription
+	  ,CASE 
+			WHEN r.nonunique = 1 THEN ISNULL(e.NonUniqueQty,0)
+			ELSE (Select ISNULL(Count(validation_id),0) from  WinOasis.dbo.cp_validation v2(NOLOCK) where v2.redemption_id = r.redemption_id)
+			END CountOfPlayersInOffer
+FROM  WinOasis.dbo.cp_Campaigns c (NOLOCK)
+	INNER JOIN  WinOasis.dbo.cp_event e ON c.campaign_id = e.campaign_id
+	INNER JOIN  WinOasis.dbo.cp_redemption r ON e.event_id = r.event_id
+	LEFT OUTER JOIN  WinOasis.dbo.cds_prize p ON r.prize_id = p.prize_id
+WHERE 
+	(r.StartDate >= @iBegDate OR @iBegDate BETWEEN r.StartDate AND r.EndDate)
+	--AND CONVERT(VARCHAR(20),e.Event_ID)+'-'+CONVERT(VARCHAR(20),r.redemption_ID) NOT IN (SELECT DISTINCT Offer# FROM WinOasis_Arch.DBO.APS_PlayerMax_OfferExtract (NOLOCK))
+ORDER BY
+	  1

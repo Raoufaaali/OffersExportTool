@@ -1,0 +1,5 @@
+﻿SELECT NULL AS SegmentName,
+Player_IX AS PlayerID,
+Offer_IX AS OfferID,
+'Campaign Offer' AS SubType
+FROM WinOasis.dbo.CP_Coupons_Players_Validation WHERE Offer_IX IN( {offer_EventIds} ) AND Coupon_IX IN ( {coupon_RedemptionIds} )
